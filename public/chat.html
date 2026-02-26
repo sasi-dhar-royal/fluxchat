@@ -257,10 +257,14 @@
                 document.body.style.height = vh + 'px';
                 document.documentElement.style.height = vh + 'px';
 
+                const container = document.querySelector('.app-container');
+                if (container) container.style.height = vh + 'px';
+
                 // Scroll to bottom when keyboard opens
                 if (vh < window.innerHeight) {
                     scrollToBottom();
                 }
+                window.scrollTo(0, 0);
             });
         }
 
