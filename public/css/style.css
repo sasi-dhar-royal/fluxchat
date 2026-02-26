@@ -1,3 +1,8 @@
+html {
+    height: 100dvh;
+    overflow: hidden;
+}
+
 :root {
     --primary-blue: #2546BE;
     --background-grey: #F4F7FF;
@@ -21,10 +26,8 @@
 body {
     background-color: var(--background-grey);
     color: var(--text-dark);
-    height: 100vh;
-    height: 100dvh;
+    height: 100%;
     overflow: hidden;
-    position: fixed;
     width: 100%;
 }
 
@@ -80,7 +83,7 @@ body {
     display: flex;
     max-width: 1400px;
     margin: 0 auto;
-    height: 100vh;
+    height: 100%;
     background: var(--white);
     box-shadow: 0 0 40px rgba(0, 0, 0, 0.1);
 }
@@ -579,6 +582,8 @@ body {
         z-index: 20;
         transition: 0.3s ease;
         background: var(--background-grey);
+        display: flex;
+        flex-direction: column;
     }
 
     .sidebar+.chat-area.active {
