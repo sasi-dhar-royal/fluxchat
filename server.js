@@ -31,7 +31,11 @@ const sessionMiddleware = session({
     resave: false,
     saveUninitialized: false,
     store: MongoStore.create({ mongoUrl: process.env.MONGODB_URI }),
-    cookie: { maxAge: 1000 * 60 * 60 * 24 } // 1 day
+    cookie: {
+        maxAge: 1000 * 60 * 60 * 24 * 30, // Stay logged in for 30 days
+        secure: false, // Set to true if using HTTPS
+        httpOnly: true
+    }
 });
 
 app.use(sessionMiddleware);
