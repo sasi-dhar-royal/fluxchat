@@ -22,7 +22,10 @@ body {
     background-color: var(--background-grey);
     color: var(--text-dark);
     height: 100vh;
+    height: 100dvh;
     overflow: hidden;
+    position: fixed;
+    width: 100%;
 }
 
 /* Base Layout & Auth */

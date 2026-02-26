@@ -253,10 +253,25 @@
         // Keyboard Viewport Adjustment
         if (window.visualViewport) {
             window.visualViewport.addEventListener('resize', () => {
-                document.body.style.height = window.visualViewport.height + 'px';
-                window.scrollTo(0, 0);
+                const vh = window.visualViewport.height;
+                document.body.style.height = vh + 'px';
+                document.documentElement.style.height = vh + 'px';
+
+                // Scroll to bottom when keyboard opens
+                if (vh < window.innerHeight) {
+                    scrollToBottom();
+                }
             });
         }
+
+        // Ensure input is visible on focus
+        document.getElementById('messageInput').addEventListener('focus', () => {
+            setTimeout(() => {
+                window.scrollTo(0, 0);
+                document.body.scrollTop = 0;
+                scrollToBottom();
+            }, 300);
+        });
     </script>
 </body>
 
