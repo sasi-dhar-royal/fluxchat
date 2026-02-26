@@ -549,6 +549,8 @@ body {
         position: relative;
         overflow: hidden;
         height: 100vh;
+        height: 100dvh;
+        /* Dynamic viewport height for mobile browsers */
         width: 100vw;
     }
 
