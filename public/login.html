@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>CloudChat | Login</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="shortcut icon" href="https://cdn-icons-png.flaticon.com/512/1041/1041916.png">
+    <meta name="theme-color" content="#2546BE">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="auth-header">
+                <div class="logo-container">
+                    <svg width="35" height="35" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path
+                            d="M30 45C30 39.4772 34.4772 35 40 35H60C65.5228 35 70 39.4772 70 45V55C70 60.5228 65.5228 65 60 65H55L45 75V65H40C34.4772 65 30 60.5228 30 55V45Z"
+                            fill="white" />
+                    </svg>
+                </div>
+                <h1>CloudChat</h1>
+                <p>Login to your account</p>
+            </div>
+
+            <form id="loginForm">
+                <div class="input-group">
+                    <label>Username</label>
+                    <input type="text" id="username" placeholder="Enter your username" required>
+                </div>
+                <div class="input-group">
+                    <label>Password</label>
+                    <input type="password" id="password" placeholder="Enter your password" required>
+                </div>
+                <button type="submit" class="btn-primary">Login</button>
+                <p id="errorMsg" style="color: #ef4444; margin-top: 15px; font-size: 14px; display: none;"></p>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const errorMsg = document.getElementById('errorMsg');
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    if (data.role === 'admin') {
+                        window.location.href = '/admin.html';
+                    } else {
+                        window.location.href = '/chat.html';
+                    }
+                } else {
+                    errorMsg.textContent = data.error || 'Login failed';
+                    errorMsg.style.display = 'block';
+                }
+            } catch (err) {
+                errorMsg.textContent = 'Server error';
+                errorMsg.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+
+</html>

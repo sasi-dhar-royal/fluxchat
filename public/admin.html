@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>CloudChat | Admin Dashboard</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="shortcut icon" href="https://cdn-icons-png.flaticon.com/512/1041/1041916.png">
+    <meta name="theme-color" content="#2546BE">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="stylesheet" href="css/style.css">
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+
+<body>
+    <div class="app-container">
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div>
+                    <h2 style="font-size: 28px; font-weight: 800; color: #1A1A1A;">Chats</h2>
+                </div>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <button onclick="logout()"
+                        style="background: #F4F7FF; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; color: #666; font-size: 11px; font-weight: 600;">Log
+                        Out</button>
+                    <div class="notif-badge" id="onlineBadge">0</div>
+                </div>
+            </div>
+            <div style="padding: 0 20px 20px;">
+                <button class="add-user-btn" style="margin: 0; width: 100%;" onclick="openModal()">
+                    Create New Support User
+                </button>
+            </div>
+            <div class="search-container">
+                <input type="text" id="userSearch" placeholder="Search support chats..." onkeyup="filterUsers()">
+            </div>
+            <div class="user-list" id="userList">
+                <!-- User items will appear here -->
+            </div>
+        </div>
+
+        <!-- Chat Area -->
+        <div class="chat-area" id="chatArea">
+            <div id="chatPlaceholder"
+                style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #666;">
+                <svg width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="#E0E7FF" stroke-width="1">
+                    <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+                </svg>
+                <p style="margin-top: 15px;">Select a user to start chatting</p>
+                <button onclick="logout()"
+                    style="margin-top: 20px; background: none; border: 1px solid #E0E7FF; padding: 8px 16px; border-radius: 8px; cursor: pointer; color: #666;">Logout
+                    Admin</button>
+            </div>
+
+            <div id="activeChat" style="display: none; flex: 1; flex-direction: column;">
+                <div class="chat-header">
+                    <div style="display: flex; align-items: center;">
+                        <div class="back-btn" onclick="toggleSidebar(true)">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M19 12H5M12 19l-7-7 7-7" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 id="recipientName">User Name</h3>
+                            <p id="recipientStatus" style="font-size: 13px; color: #666;">Offline</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="messages-container" id="messages">
+                    <!-- Messages will appear here -->
+                </div>
+
+                <form class="input-bar" id="messageForm" style="position: relative;">
+                    <button type="button" class="emoji-toggle" onclick="toggleEmojiPicker()">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <circle cx="12" cy="12" r="10" />
+                            <path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01" />
+                        </svg>
+                    </button>
+                    <div id="emojiPicker" class="emoji-picker">
+                        <div class="emoji-grid" id="emojiGrid"></div>
+                    </div>
+                    <input type="text" id="messageInput" placeholder="Type a message..." required autocomplete="off">
+                    <button type="submit" class="send-btn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linecap="round"
+                                stroke-linejoin="round" />
+                        </svg>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add User Modal -->
+    <div id="addUserModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Create New User</h3>
+                <span class="close-modal" onclick="closeModal()">&times;</span>
+            </div>
+            <form id="addUserForm">
+                <div class="input-group">
+                    <label>Username</label>
+                    <input type="text" id="newUsername" required placeholder="Enter username">
+                </div>
+                <div class="input-group">
+                    <label>Password</label>
+                    <input type="password" id="newPassword" required placeholder="Enter password">
+                </div>
+                <button type="submit" class="btn-primary">Create User</button>
+                <p id="addError" style="color: #ef4444; margin-top: 15px; font-size: 14px; display: none;"></p>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let selectedUserId = null;
+        let currentUser = null;
+        let users = [];
+
+        async function init() {
+            const meRes = await fetch('/api/me');
+            if (!meRes.ok) window.location.href = '/login.html';
+            currentUser = await meRes.json();
+            if (currentUser.role !== 'admin') window.location.href = '/chat.html';
+
+            loadUsers();
+        }
+
+        async function loadUsers() {
+            const res = await fetch('/api/users');
+            users = await res.json();
+            renderUserList();
+        }
+
+        async function deleteUser(event, userId) {
+            event.stopPropagation(); // Don't select the chat
+            if (!confirm('Are you sure you want to delete this user and all their messages?')) return;
+
+            try {
+                const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+                if (res.ok) {
+                    if (selectedUserId === userId) {
+                        selectedUserId = null;
+                        document.getElementById('activeChat').style.display = 'none';
+                        document.getElementById('chatPlaceholder').style.display = 'flex';
+                    }
+                    loadUsers();
+                }
+            } catch (err) {
+                console.error('Failed to delete user:', err);
+            }
+        }
+
+        function renderUserList(filteredUsers = null) {
+            const list = document.getElementById('userList');
+            list.innerHTML = '';
+            const dataToRender = filteredUsers || users;
+
+            if (dataToRender.length === 0) {
+                list.innerHTML = '<div style="padding: 40px 20px; text-align: center; color: #999; font-size: 14px;">No users found</div>';
+                return;
+            }
+
+            dataToRender.forEach(user => {
+                const item = document.createElement('div');
+                item.className = `user-item ${selectedUserId === user._id ? 'active' : ''}`;
+                item.onclick = () => selectUser(user);
+
+                const initial = user.username.charAt(0).toUpperCase();
+
+                let timeStr = "12:14";
+                if (user.lastSeen) {
+                    const date = new Date(user.lastSeen);
+                    timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+                }
+
+                item.innerHTML = `
+                    <div class="avatar">
+                        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity: 0.9">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                        </svg>
+                        <div class="status-dot ${user.isOnline ? 'online' : ''}" id="status-${user._id}"></div>
+                    </div>
+                    <div class="user-info">
+                        <div class="user-info-top">
+                            <h4>${user.username}</h4>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span class="timestamp" style="font-size: 10px;">${timeStr}</span>
+                                <button onclick="deleteUser(event, '${user._id}')" class="delete-btn" title="Delete User">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <p>${user.isOnline ? 'Online now' : 'Last seen: ' + formatLastSeen(user.lastSeen)}</p>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+
+            // Update badge with online count
+            const onlineCount = users.filter(u => u.isOnline).length;
+            document.getElementById('onlineBadge').textContent = onlineCount;
+        }
+
+        function filterUsers() {
+            const query = document.getElementById('userSearch').value.toLowerCase();
+            const filtered = users.filter(u => u.username.toLowerCase().includes(query));
+            renderUserList(filtered);
+        }
+
+        async function selectUser(user) {
+            selectedUserId = user._id;
+            document.getElementById('chatPlaceholder').style.display = 'none';
+            document.getElementById('activeChat').style.display = 'flex';
+            document.getElementById('recipientName').textContent = user.username;
+            document.getElementById('recipientStatus').textContent = user.isOnline ? 'Online' : 'Last seen: ' + formatLastSeen(user.lastSeen);
+
+            // Mark these messages as seen
+            socket.emit('mark_seen', { senderId: user._id });
+
+            // Mobile: Hide list, show chat
+            if (window.innerWidth <= 768) {
+                document.getElementById('sidebar').classList.add('hidden');
+                document.getElementById('chatArea').classList.add('active');
+            }
+
+            renderUserList(); // Update active class
+
+            const res = await fetch(`/api/messages/${user._id}`);
+            const messages = await res.json();
+            const container = document.getElementById('messages');
+            container.innerHTML = '';
+            messages.forEach(msg => appendMessage(msg));
+            scrollToBottom();
+        }
+
+        function appendMessage(msg) {
+            // Only append if it belongs to the active chat
+            if (msg.senderId !== selectedUserId && msg.receiverId !== selectedUserId) return;
+
+            const container = document.getElementById('messages');
+            const div = document.createElement('div');
+            const isSent = msg.senderId === currentUser.userId;
+            div.className = `message ${isSent ? 'sent' : 'received'}`;
+
+            const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            let statusTick = '';
+            if (isSent) {
+                const isSeen = msg.status === 'seen';
+                statusTick = `
+                    <span class="status-tick ${isSeen ? 'seen' : ''}" id="tick-${msg._id}">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                            <path d="M20 6L9 17l-5-5"/>
+                            ${isSeen ? '<path d="M20 12L9 23l-5-5" transform="translate(4,0)"/>' : ''}
+                        </svg>
+                    </span>
+                `;
+            }
+
+            div.innerHTML = `
+                ${msg.messageText}
+                <div style="display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 2px;">
+                    <span class="message-time">${time}</span>
+                    ${statusTick}
+                </div>
+            `;
+            container.appendChild(div);
+            scrollToBottom();
+        }
+
+        function formatLastSeen(dateStr) {
+            if (!dateStr) return 'Never';
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diffInSecs = Math.floor((now - date) / 1000);
+
+            if (diffInSecs < 60) return 'Just now';
+            if (diffInSecs < 3600) return Math.floor(diffInSecs / 60) + 'm ago';
+            if (diffInSecs < 86400) return Math.floor(diffInSecs / 3600) + 'h ago';
+            return date.toLocaleDateString();
+        }
+
+        function scrollToBottom() {
+            const container = document.getElementById('messages');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function toggleSidebar(show) {
+            if (show) {
+                document.getElementById('sidebar').classList.remove('hidden');
+                document.getElementById('chatArea').classList.remove('active');
+            }
+        }
+
+        document.getElementById('messageForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+            if (text && selectedUserId) {
+                socket.emit('send_message', { receiverId: selectedUserId, messageText: text });
+                input.value = '';
+            }
+        });
+
+        socket.on('new_message', (msg) => {
+            appendMessage(msg);
+        });
+
+        socket.on('messages_seen', (data) => {
+            if (selectedUserId === data.viewerId) {
+                // All my sent messages are seen now
+                const ticks = document.querySelectorAll('.status-tick:not(.seen)');
+                ticks.forEach(tick => {
+                    tick.classList.add('seen');
+                    tick.querySelector('svg').innerHTML = '<path d="M20 6L9 17l-5-5"/><path d="M20 12L9 23l-5-5" transform="translate(4,0)"/>';
+                });
+            }
+        });
+
+        socket.on('status_change', (data) => {
+            const user = users.find(u => u._id === data.userId);
+            if (user) {
+                user.isOnline = data.isOnline;
+                if (!data.isOnline) user.lastSeen = new Date();
+                renderUserList();
+                if (selectedUserId === data.userId) {
+                    document.getElementById('recipientStatus').textContent = data.isOnline ? 'Online' : 'Last seen: ' + formatLastSeen(user.lastSeen);
+                }
+            }
+        });
+
+        async function logout() {
+            await fetch('/api/logout', { method: 'POST' });
+            window.location.href = '/login.html';
+        }
+
+        init();
+
+        // Modal Logic
+        function openModal() {
+            document.getElementById('addUserModal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('addUserModal').style.display = 'none';
+            document.getElementById('addError').style.display = 'none';
+        }
+
+        document.getElementById('addUserForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('newUsername').value;
+            const password = document.getElementById('newPassword').value;
+            const errorDiv = document.getElementById('addError');
+
+            try {
+                const res = await fetch('/api/users/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    closeModal();
+                    document.getElementById('addUserForm').reset();
+                    loadUsers(); // Refresh list
+                } else {
+                    errorDiv.textContent = data.error;
+                    errorDiv.style.display = 'block';
+                }
+            } catch (err) {
+                errorDiv.textContent = 'Server error';
+                errorDiv.style.display = 'block';
+            }
+        });
+
+        // Emoji Logic
+        const emojis = ['😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣', '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗', '🤔', '🤭', '🤫', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐', '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑', '🤠', '😈', '👿', '👹', '👺', '🤡', '👻', '💀', '☠️', '👽', '👾', '🤖', '🎃', '😺', '😸', '😹', '😻', '😼', '😽', '🙀', '😿', '😾'];
+
+        function initEmojis() {
+            const grid = document.getElementById('emojiGrid');
+            emojis.forEach(emoji => {
+                const span = document.createElement('span');
+                span.className = 'emoji-item';
+                span.textContent = emoji;
+                span.onclick = () => insertEmoji(emoji);
+                grid.appendChild(span);
+            });
+        }
+
+        function toggleEmojiPicker() {
+            document.getElementById('emojiPicker').classList.toggle('active');
+        }
+
+        function insertEmoji(emoji) {
+            const input = document.getElementById('messageInput');
+            input.value += emoji;
+            input.focus();
+            // document.getElementById('emojiPicker').classList.remove('active');
+        }
+
+        // Close emoji picker on outside click
+        document.addEventListener('click', (e) => {
+            const picker = document.getElementById('emojiPicker');
+            const toggle = document.querySelector('.emoji-toggle');
+            if (!picker.contains(e.target) && !toggle.contains(e.target)) {
+                picker.classList.remove('active');
+            }
+        });
+
+        initEmojis();
+
+        // Close modal on outside click
+        window.onclick = function (event) {
+            const modal = document.getElementById('addUserModal');
+            if (event.target == modal) closeModal();
+        }
+    </script>
+</body>
+
+</html>

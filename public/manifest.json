@@ -1,0 +1,15 @@
+{
+  "name": "CloudChat",
+  "short_name": "CloudChat",
+  "start_url": "/login.html",
+  "display": "standalone",
+  "background_color": "#F4F7FF",
+  "theme_color": "#2546BE",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/1041/1041916.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

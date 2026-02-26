@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>CloudChat | Support</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="shortcut icon" href="https://cdn-icons-png.flaticon.com/512/1041/1041916.png">
+    <meta name="theme-color" content="#2546BE">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="stylesheet" href="css/style.css">
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+
+<body>
+    <div class="app-container">
+        <div class="chat-area">
+            <div class="chat-header" style="padding: 25px 25px 15px;">
+                <div>
+                    <h2 style="font-size: 24px; font-weight: 800; color: #1A1A1A; margin-bottom: 5px;">CloudChat</h2>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <span id="adminStatusDot" class="status-dot offline"
+                            style="position: static; display: inline-block; width: 8px; height: 8px;"></span>
+                        <p id="adminStatusText" style="font-size: 13px; color: #666; font-weight: 500;">Last seen: ...
+                        </p>
+                    </div>
+                </div>
+                <button onclick="logout()"
+                    style="background: #F4F7FF; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; color: #666; font-size: 12px; font-weight: 600;">Log
+                    Out</button>
+            </div>
+
+            <div class="messages-container" id="messages">
+                <!-- Messages will appear here -->
+            </div>
+
+            <form class="input-bar" id="messageForm" style="position: relative;">
+                <button type="button" class="emoji-toggle" onclick="toggleEmojiPicker()">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01" />
+                    </svg>
+                </button>
+                <div id="emojiPicker" class="emoji-picker">
+                    <div class="emoji-grid" id="emojiGrid"></div>
+                </div>
+                <input type="text" id="messageInput" placeholder="Type a message..." required autocomplete="off">
+                <button type="submit" class="send-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let adminId = null;
+        let currentUser = null;
+
+        async function init() {
+            // Get current user info
+            const meRes = await fetch('/api/me');
+            if (!meRes.ok) window.location.href = '/login.html';
+            currentUser = await meRes.json();
+
+            // Get admin ID and status
+            const adminRes = await fetch('/api/admin-id');
+            const adminData = await adminRes.json();
+            adminId = adminData.adminId;
+
+            if (adminId) {
+                updateAdminStatus(adminData);
+                loadHistory();
+
+                // Mark admin messages as seen
+                socket.emit('mark_seen', { senderId: adminId });
+            }
+        }
+
+        function updateAdminStatus(user) {
+            if (!user) return;
+            const dot = document.getElementById('adminStatusDot');
+            const text = document.getElementById('adminStatusText');
+
+            if (user.isOnline) {
+                dot.className = 'status-dot online';
+                text.textContent = 'Online now';
+            } else {
+                dot.className = 'status-dot offline';
+                text.textContent = 'Last seen: ' + formatLastSeen(user.lastSeen);
+            }
+        }
+
+        function formatLastSeen(dateStr) {
+            if (!dateStr) return 'Never';
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diffInSecs = Math.floor((now - date) / 1000);
+
+            if (diffInSecs < 60) return 'Just now';
+            if (diffInSecs < 3600) return Math.floor(diffInSecs / 60) + 'm ago';
+            if (diffInSecs < 86400) return Math.floor(diffInSecs / 3600) + 'h ago';
+            return date.toLocaleDateString();
+        }
+
+        async function loadHistory() {
+            const res = await fetch(`/api/messages/${adminId}`);
+            const messages = await res.json();
+            const container = document.getElementById('messages');
+            container.innerHTML = '';
+            messages.forEach(msg => appendMessage(msg));
+            scrollToBottom();
+        }
+
+        function appendMessage(msg) {
+            const container = document.getElementById('messages');
+            const div = document.createElement('div');
+            const isSent = msg.senderId === currentUser.userId;
+            div.className = `message ${isSent ? 'sent' : 'received'}`;
+
+            const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            let statusTick = '';
+            if (isSent) {
+                const isSeen = msg.status === 'seen';
+                statusTick = `
+                    <span class="status-tick ${isSeen ? 'seen' : ''}" id="tick-${msg._id}">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                            <path d="M20 6L9 17l-5-5"/>
+                            ${isSeen ? '<path d="M20 12L9 23l-5-5" transform="translate(4,0)"/>' : ''}
+                        </svg>
+                    </span>
+                `;
+            }
+
+            div.innerHTML = `
+                ${msg.messageText}
+                <div style="display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 2px;">
+                    <span class="message-time">${time}</span>
+                    ${statusTick}
+                </div>
+            `;
+            container.appendChild(div);
+            scrollToBottom();
+        }
+
+        function scrollToBottom() {
+            const container = document.getElementById('messages');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        document.getElementById('messageForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+            if (text && adminId) {
+                socket.emit('send_message', { receiverId: adminId, messageText: text });
+                input.value = '';
+            }
+        });
+
+        socket.on('new_message', (msg) => {
+            appendMessage(msg);
+            // If it's from admin, send mark_seen
+            if (msg.senderId === adminId) {
+                socket.emit('mark_seen', { senderId: adminId });
+            }
+        });
+
+        socket.on('messages_seen', (data) => {
+            if (adminId === data.viewerId) {
+                const ticks = document.querySelectorAll('.status-tick:not(.seen)');
+                ticks.forEach(tick => {
+                    tick.classList.add('seen');
+                    tick.querySelector('svg').innerHTML = '<path d="M20 6L9 17l-5-5"/><path d="M20 12L9 23l-5-5" transform="translate(4,0)"/>';
+                });
+            }
+        });
+
+        socket.on('status_change', (data) => {
+            if (data.userId === adminId) {
+                // Update header
+                const dot = document.getElementById('adminStatusDot');
+                const text = document.getElementById('adminStatusText');
+                if (data.isOnline) {
+                    dot.className = 'status-dot online';
+                    text.textContent = 'Online now';
+                } else {
+                    dot.className = 'status-dot offline';
+                    text.textContent = 'Last seen: ' + formatLastSeen(data.lastSeen);
+                }
+            }
+        });
+
+        function formatLastSeen(dateStr) {
+            if (!dateStr) return 'Never';
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diffInSecs = Math.max(0, Math.floor((now - date) / 1000));
+
+            if (diffInSecs < 60) return 'Just now';
+            if (diffInSecs < 3600) return Math.floor(diffInSecs / 60) + 'm ago';
+            if (diffInSecs < 86400) return Math.floor(diffInSecs / 3600) + 'h ago';
+            return date.toLocaleDateString();
+        }
+
+        async function logout() {
+            await fetch('/api/logout', { method: 'POST' });
+            window.location.href = '/login.html';
+        }
+
+        // Emoji Logic
+        const emojis = ['😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣', '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗', '🤔', '🤭', '🤫', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐', '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑', '🤠', '😈', '👿', '👹', '👺', '🤡', '👻', '💀', '☠️', '👽', '👾', '🤖', '🎃', '😺', '😸', '😹', '😻', '😼', '😽', '🙀', '😿', '😾'];
+
+        function initEmojis() {
+            const grid = document.getElementById('emojiGrid');
+            emojis.forEach(emoji => {
+                const span = document.createElement('span');
+                span.className = 'emoji-item';
+                span.textContent = emoji;
+                span.onclick = () => insertEmoji(emoji);
+                grid.appendChild(span);
+            });
+        }
+
+        function toggleEmojiPicker() {
+            document.getElementById('emojiPicker').classList.toggle('active');
+        }
+
+        function insertEmoji(emoji) {
+            const input = document.getElementById('messageInput');
+            input.value += emoji;
+            input.focus();
+        }
+
+        // Close emoji picker on outside click
+        document.addEventListener('click', (e) => {
+            const picker = document.getElementById('emojiPicker');
+            const toggle = document.querySelector('.emoji-toggle');
+            if (!picker.contains(e.target) && !toggle.contains(e.target)) {
+                picker.classList.remove('active');
+            }
+        });
+
+        initEmojis();
+
+        init();
+    </script>
+</body>
+
+</html>
